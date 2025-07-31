@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+# Improved UFW action for fail2ban
+# Fixes "Invalid position '1'" error with empty ruleset
+
+[Definition]
+
+# Empty start/stop actions
+actionstart =
+actionstop =
+actioncheck =
+
+# ИСПРАВЛЕНИЕ: Use prepend instead of insert to avoid position errors
+actionban = [ -n "<application>" ] && app="app <application>"
+            ufw prepend <blocktype> from <ip> to <destination> $app
+
+actionunban = [ -n "<application>" ] && app="app <application>"
+              ufw delete <blocktype> from <ip> to <destination> $app
+
+[Init]
+# Block type: reject or deny
+blocktype = {{ fail2ban_blocktype | default('reject') }}
+
+# Destination address
+destination = any
+
+# Application name from 'sudo ufw app list' (optional)
+application =

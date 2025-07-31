@@ -1,0 +1,70 @@
+# {{ ansible_managed }}
+# Fail2ban jail configuration for SafeLine deployment
+
+[DEFAULT]
+# IP addresses to ignore (whitelist)
+ignoreip = {{ fail2ban_ignoreip | join(' ') }}
+
+# Ban duration
+bantime = {{ fail2ban_bantime | default('24h') }}
+
+# Time window for counting failed attempts
+findtime = {{ fail2ban_findtime | default('10m') }}
+
+# Maximum failed attempts before ban
+maxretry = {{ fail2ban_maxretry | default(3) }}
+
+# Log processing backend
+backend = auto
+
+# Use UFW for banning
+banaction = ufw
+banaction_allports = ufw
+
+{% if fail2ban_destemail is defined %}
+# Email configuration
+destemail = {{ fail2ban_destemail }}
+sendername = {{ fail2ban_sendername | default('Fail2Ban SafeLine') }}
+mta = sendmail
+action = %(action_mwl)s
+{% endif %}
+
+# SSH protection
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = {{ fail2ban_ssh_maxretry | default(5) }}
+bantime = {{ fail2ban_bantime | default('24h') }}
+
+{% if install_nginx %}
+# Nginx protection (only if nginx is installed)
+[nginx-http-auth]
+enabled = true
+port = http,https
+filter = nginx-http-auth
+logpath = /var/log/nginx/error.log
+maxretry = 3
+
+[nginx-noscript]
+enabled = true
+port = http,https
+filter = nginx-noscript
+logpath = /var/log/nginx/access.log
+maxretry = 6
+
+[nginx-badbots]
+enabled = true
+port = http,https
+filter = nginx-badbots
+logpath = /var/log/nginx/access.log
+maxretry = 2
+
+[nginx-noproxy]
+enabled = true
+port = http,https
+filter = nginx-noproxy
+logpath = /var/log/nginx/access.log
+maxretry = 2
+{% endif %}

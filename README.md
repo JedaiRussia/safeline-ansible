@@ -41,7 +41,7 @@ safeline-ansible/
 
 1. **Клонируйте репозиторий** и перейдите в каталог:
    ```bash
-   git clone https://github.com/yourorg/safeline-ansible.git
+   git clone https://github.com/JedaiRussia/safeline-ansible.git
    cd safeline-ansible
    ```
 2. **Отредактируйте `inventory.ini`** и задайте IP/пользователя.
