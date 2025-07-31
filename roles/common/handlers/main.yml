@@ -1,0 +1,19 @@
+---
+# Handlers for common role
+
+- name: restart cron
+  service:
+    name: cron
+    state: restarted
+  listen: restart cron
+
+- name: restart systemd-timesyncd
+  systemd:
+    name: systemd-timesyncd
+    state: restarted
+  listen: restart timesyncd
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+  listen: reload systemd

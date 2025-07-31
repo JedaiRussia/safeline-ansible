@@ -223,7 +223,7 @@
     method: HEAD
     timeout: 10
   register: internet_check
-  ignore_errors: yes
+  ignore_errors: true
   tags:
     - connectivity
     - verification
@@ -252,10 +252,3 @@
   tags:
     - summary
     - info
-
-# Handlers
-- name: restart cron
-  service:
-    name: cron
-    state: restarted
-  listen: restart cron
