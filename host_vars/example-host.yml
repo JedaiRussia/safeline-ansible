@@ -1,0 +1,42 @@
+---
+# Пример переменных для конкретного хоста safeline01
+# Файл: host_vars/safeline01.yml
+
+# Специфичные настройки для данного хоста
+ansible_host: "192.168.1.100"
+ansible_user: "ubuntu"
+
+# Переопределение глобальных настроек для этого хоста
+safeline_admin_port: 9443
+swap_size: "4G"  # Больше swap для production сервера
+
+# Специальные IP для доступа к админке этого сервера
+admin_allowed_ips:
+  - "192.168.1.0/24"
+  - "10.0.1.50/32"  # Конкретный IP администратора
+  - "203.0.113.10/32"  # Публичный IP офиса
+
+# Дополнительные настройки для production
+deployment_environment: "production"
+backup_enabled: true
+log_level: "INFO"
+
+# Специфичные настройки nginx для этого хоста (если используется)
+install_nginx: false
+
+# Дополнительные пакеты только для этого хоста
+host_specific_packages:
+  - "monitoring-agent"
+  - "backup-client"
+
+# Настройки производительности для мощного сервера
+max_open_files: 131072
+max_processes: 65536
+
+# Кастомные настройки SafeLine для production
+safeline_postgres_password: "ProductionSecurePassword2024!"
+safeline_image_tag: "latest"
+
+# Мониторинг настройки
+monitoring_enabled: true
+metrics_port: 9090
