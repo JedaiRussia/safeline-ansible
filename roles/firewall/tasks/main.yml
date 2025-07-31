@@ -1,0 +1,367 @@
+---
+# SafeLine WAF - Роль Firewall
+# Настройка UFW и fail2ban для безопасности
+
+- name: Установка UFW firewall
+  apt:
+    name: ufw
+    state: present
+    update_cache: yes
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+
+- name: Сброс UFW к настройкам по умолчанию
+  ufw:
+    state: reset
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - reset
+
+- name: Настройка политики по умолчанию для UFW - входящие соединения
+  ufw:
+    default: "{{ ufw_default_policy | default('deny') }}"
+    direction: incoming
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - policy
+
+- name: Настройка политики по умолчанию для UFW - исходящие соединения
+  ufw:
+    default: allow
+    direction: outgoing
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - policy
+
+- name: Разрешение SSH соединений (критически важно!)
+  ufw:
+    rule: allow
+    port: "{{ ssh_port | string }}"
+    proto: tcp
+    comment: "SSH Access"
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - ssh
+
+- name: Разрешение HTTP трафика (порт 80) для SafeLine
+  ufw:
+    rule: allow
+    port: "{{ safeline_http_port | string }}"
+    proto: tcp
+    comment: "SafeLine HTTP"
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - http
+
+- name: Разрешение HTTPS трафика (порт 443) для SafeLine
+  ufw:
+    rule: allow
+    port: "{{ safeline_https_port | string }}"
+    proto: tcp
+    comment: "SafeLine HTTPS"
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - https
+
+- name: Разрешение доступа к админ-панели SafeLine для определенных IP
+  ufw:
+    rule: allow
+    port: "{{ safeline_admin_port | string }}"
+    proto: tcp
+    src: "{{ item }}"
+    comment: "SafeLine Admin Panel"
+  loop: "{{ admin_allowed_ips }}"
+  when: ufw_enabled | default(true) and admin_allowed_ips is defined
+  tags:
+    - firewall
+    - ufw
+    - admin
+
+- name: Разрешение Nginx портов (если используется)
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    comment: "Nginx Reverse Proxy"
+  loop:
+    - "{{ nginx_http_port | string }}"
+    - "{{ nginx_https_port | string }}"
+  when: ufw_enabled | default(true) and install_nginx | default(false)
+  tags:
+    - firewall
+    - ufw
+    - nginx
+
+- name: Настройка логирования UFW
+  ufw:
+    logging: "{{ ufw_logging | default('on') }}"
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - logging
+
+- name: Включение UFW firewall
+  ufw:
+    state: enabled
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - ufw
+    - enable
+
+- name: Установка fail2ban
+  apt:
+    name: fail2ban
+    state: present
+    update_cache: yes
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+
+- name: Создание локального конфигурационного файла fail2ban
+  template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  notify: restart fail2ban
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+    - config
+
+- name: Создание конфигурации jail.local для fail2ban
+  copy:
+    content: |
+      [DEFAULT]
+      # Глобальные настройки fail2ban для SafeLine WAF
+      ignoreip = {{ fail2ban_ignoreip | join(' ') }}
+      bantime = {{ fail2ban_bantime | default('10m') }}
+      findtime = {{ fail2ban_findtime | default('10m') }}
+      maxretry = {{ fail2ban_maxretry | default(5) }}
+      backend = auto
+      usedns = warn
+      
+      # Настройки для SSH
+      [sshd]
+      enabled = true
+      port = {{ ssh_port }}
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = {{ fail2ban_maxretry | default(5) }}
+      bantime = {{ fail2ban_bantime | default('10m') }}
+      
+      # Дополнительная защита для SafeLine админ-панели
+      [nginx-http-auth]
+      enabled = false
+      port = {{ safeline_admin_port }}
+      filter = nginx-http-auth
+      logpath = {{ safeline_directory }}/logs/nginx/*.log
+      maxretry = 3
+      bantime = 1h
+      
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  notify: restart fail2ban
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+    - config
+
+- name: Запуск и включение службы fail2ban
+  systemd:
+    name: fail2ban
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+    - service
+
+- name: Проверка статуса UFW
+  command: ufw status verbose
+  register: ufw_status
+  changed_when: false
+  when: ufw_enabled | default(true)
+  tags:
+    - firewall
+    - verification
+    - ufw
+
+- name: Проверка статуса fail2ban
+  command: fail2ban-client status
+  register: fail2ban_status
+  changed_when: false
+  when: fail2ban_enabled | default(true)
+  ignore_errors: yes
+  tags:
+    - firewall
+    - verification
+    - fail2ban
+
+- name: Создание скрипта для мониторинга fail2ban
+  copy:
+    content: |
+      #!/bin/bash
+      # Скрипт мониторинга fail2ban для SafeLine WAF
+      
+      echo "=== Статус fail2ban ==="
+      fail2ban-client status
+      
+      echo -e "\n=== Статус jail sshd ==="
+      fail2ban-client status sshd
+      
+      echo -e "\n=== Последние 10 блокировок ==="
+      tail -n 10 /var/log/fail2ban.log | grep "Ban "
+      
+      echo -e "\n=== Текущие заблокированные IP ==="
+      fail2ban-client status sshd | grep "Banned IP list" | cut -d: -f2
+      
+    dest: /usr/local/bin/check-fail2ban
+    owner: root
+    group: root
+    mode: '0755'
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+    - monitoring
+
+- name: Создание скрипта для экстренного разблокирования IP
+  copy:
+    content: |
+      #!/bin/bash
+      # Скрипт для экстренного разблокирования IP в fail2ban
+      
+      if [ $# -eq 0 ]; then
+          echo "Использование: $0 <IP-адрес>"
+          echo "Пример: $0 192.168.1.100"
+          exit 1
+      fi
+      
+      IP=$1
+      
+      echo "Разблокировка IP $IP во всех jail..."
+      fail2ban-client set sshd unbanip $IP
+      
+      echo "Проверка UFW правил для IP $IP..."
+      ufw status numbered | grep $IP
+      
+      echo "Готово!"
+      
+    dest: /usr/local/bin/unban-ip
+    owner: root
+    group: root
+    mode: '0755'
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+    - emergency
+
+- name: Настройка ротации логов для fail2ban
+  copy:
+    content: |
+      /var/log/fail2ban.log {
+          weekly
+          rotate 4
+          compress
+          delaycompress
+          missingok
+          postrotate
+              fail2ban-client flushlogs 1>/dev/null || true
+          endscript
+      }
+    dest: /etc/logrotate.d/fail2ban
+    owner: root
+    group: root
+    mode: '0644'
+  when: fail2ban_enabled | default(true)
+  tags:
+    - firewall
+    - fail2ban
+    - logging
+
+- name: Проверка конфигурации SSH для защиты от атак
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backup: yes
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin {{ "no" if disable_root_login else "yes" }}' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication {{ "no" if not ssh_password_authentication else "yes" }}' }
+    - { regexp: '^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords {{ "no" if not ssh_permit_empty_passwords else "yes" }}' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding {{ "no" if not ssh_x11_forwarding else "yes" }}' }
+    - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries {{ ssh_max_auth_tries | default(3) }}' }
+    - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval {{ ssh_client_alive_interval | default(300) }}' }
+    - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax {{ ssh_client_alive_count_max | default(2) }}' }
+  notify: restart ssh
+  tags:
+    - firewall
+    - ssh
+    - hardening
+
+- name: Изменение SSH порта (если указан нестандартный)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port'
+    line: 'Port {{ ssh_port }}'
+    backup: yes
+  notify: restart ssh
+  when: ssh_port != 22
+  tags:
+    - firewall  
+    - ssh
+    - port
+
+- name: Отображение итоговой информации о firewall
+  debug:
+    msg: |
+      =================================
+      Настройка Firewall завершена
+      =================================
+      UFW статус: {{ 'Включен' if ufw_enabled else 'Отключен' }}
+      Fail2ban статус: {{ 'Включен' if fail2ban_enabled else 'Отключен' }}
+      SSH порт: {{ ssh_port }}
+      SafeLine HTTP: {{ safeline_http_port }}
+      SafeLine HTTPS: {{ safeline_https_port }}
+      SafeLine Admin: {{ safeline_admin_port }}
+      
+      Разрешенные IP для админки:
+      {{ admin_allowed_ips | join('\n      ') if admin_allowed_ips is defined else '      Не настроены' }}
+      
+      Полезные команды:
+      - ufw status verbose
+      - fail2ban-client status
+      - check-fail2ban
+      - unban-ip <IP>
+      =================================
+  tags:
+    - firewall
+    - summary

@@ -1,0 +1,289 @@
+---
+# SafeLine WAF - Роль Docker
+# Установка Docker CE и Docker Compose
+
+- name: Удаление старых версий Docker
+  apt:
+    name:
+      - docker.io
+      - docker-doc
+      - docker-compose
+      - docker-compose-v2
+      - podman-docker
+      - containerd
+      - runc
+    state: absent
+    autoremove: yes
+  tags:
+    - docker
+    - cleanup
+
+- name: Установка необходимых пакетов для Docker
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - software-properties-common
+    state: present
+    update_cache: yes
+  tags:
+    - docker
+    - prerequisites
+
+- name: Создание директории для ключей apt
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  tags:
+    - docker
+    - setup
+
+- name: Добавление официального GPG ключа Docker
+  apt_key:
+    url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg"
+    keyring: /etc/apt/keyrings/docker.gpg
+    state: present
+  tags:
+    - docker
+    - gpg
+
+- name: Определение архитектуры системы
+  command: dpkg --print-architecture
+  register: deb_architecture
+  changed_when: false
+  tags:
+    - docker
+    - architecture
+
+- name: Добавление репозитория Docker
+  apt_repository:
+    repo: "deb [arch={{ deb_architecture.stdout }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+    update_cache: yes
+  tags:
+    - docker
+    - repository
+
+- name: Установка Docker CE
+  apt:
+    name: "{{ docker_packages }}"
+    state: present
+    update_cache: yes
+  notify:
+    - start docker
+    - enable docker
+  tags:
+    - docker
+    - install
+
+- name: Проверка установки Docker
+  command: docker --version
+  register: docker_version_check
+  changed_when: false
+  tags:
+    - docker
+    - verification
+
+- name: Отображение версии Docker
+  debug:
+    msg: "Установлена версия Docker: {{ docker_version_check.stdout }}"
+  tags:
+    - docker
+    - verification
+
+- name: Создание группы docker
+  group:
+    name: docker
+    state: present
+  tags:
+    - docker
+    - users
+
+- name: Добавление пользователей в группу docker
+  user:
+    name: "{{ item }}"
+    groups: docker
+    append: yes
+  loop: "{{ docker_users }}"
+  when: docker_users is defined
+  tags:
+    - docker
+    - users
+
+- name: Создание директории конфигурации Docker daemon
+  file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags:
+    - docker
+    - configuration
+
+- name: Настройка Docker daemon
+  copy:
+    content: "{{ docker_daemon_options | to_nice_json }}"
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  notify:
+    - restart docker
+  when: docker_daemon_options is defined
+  tags:
+    - docker
+    - configuration
+
+- name: Определение последней версии Docker Compose
+  uri:
+    url: https://api.github.com/repos/docker/compose/releases/latest
+    method: GET
+    return_content: yes
+  register: docker_compose_latest
+  when: docker_compose_version == "latest"
+  tags:
+    - docker-compose
+    - version
+
+- name: Установка версии Docker Compose
+  set_fact:
+    compose_version: "{{ docker_compose_version if docker_compose_version != 'latest' else docker_compose_latest.json.tag_name }}"
+  tags:
+    - docker-compose
+    - version
+
+- name: Загрузка Docker Compose
+  get_url:
+    url: "https://github.com/docker/compose/releases/download/{{ compose_version }}/docker-compose-linux-{{ deb_architecture.stdout }}"
+    dest: "{{ docker_compose_path }}"
+    mode: '0755'
+    owner: root
+    group: root
+    force: yes
+  tags:
+    - docker-compose
+    - install
+
+- name: Создание симлинка для Docker Compose
+  file:
+    src: "{{ docker_compose_path }}"
+    dest: /usr/bin/docker-compose
+    state: link
+    force: yes
+  tags:
+    - docker-compose
+    - symlink
+
+- name: Проверка установки Docker Compose
+  command: docker-compose --version
+  register: docker_compose_version_check
+  changed_when: false
+  tags:
+    - docker-compose
+    - verification
+
+- name: Отображение версии Docker Compose
+  debug:
+    msg: "Установлена версия Docker Compose: {{ docker_compose_version_check.stdout }}"
+  tags:
+    - docker-compose
+    - verification
+
+- name: Запуск и включение службы Docker
+  systemd:
+    name: docker
+    state: "{{ docker_service_state }}"
+    enabled: "{{ docker_service_enabled }}"
+    daemon_reload: yes
+  tags:
+    - docker
+    - service
+
+- name: Проверка статуса службы Docker
+  command: systemctl is-active docker
+  register: docker_service_status
+  changed_when: false
+  tags:
+    - docker
+    - verification
+
+- name: Проверка работы Docker
+  command: docker run --rm hello-world
+  register: docker_test
+  changed_when: false
+  ignore_errors: true
+  tags:
+    - docker
+    - test
+
+- name: Результат тестирования Docker
+  debug:
+    msg: |
+      {% if docker_test.rc == 0 %}
+      ✅ Docker работает корректно
+      {% else %}
+      ❌ Проблема с Docker: {{ docker_test.stderr }}
+      {% endif %}
+  tags:
+    - docker
+    - test
+
+- name: Установка Docker Compose плагина (современный способ)
+  apt:
+    name: docker-compose-plugin
+    state: present
+  tags:
+    - docker-compose
+    - plugin
+
+- name: Проверка плагина Docker Compose
+  command: docker compose version
+  register: docker_compose_plugin_version
+  changed_when: false
+  ignore_errors: true
+  tags:
+    - docker-compose
+    - verification
+
+- name: Настройка логротации для Docker
+  copy:
+    content: |
+      /var/lib/docker/containers/*/*.log {
+          rotate 7
+          daily
+          compress
+          size=1M
+          missingok
+          delaycompress
+          copytruncate
+      }
+    dest: /etc/logrotate.d/docker
+    owner: root
+    group: root
+    mode: '0644'
+  tags:
+    - docker
+    - logging
+
+- name: Показать итоговую информацию о Docker
+  debug:
+    msg: |
+      =================================
+      Установка Docker завершена
+      =================================
+      Docker версия: {{ docker_version_check.stdout }}
+      Docker Compose версия: {{ docker_compose_version_check.stdout }}
+      Docker Compose Plugin: {{ docker_compose_plugin_version.stdout if docker_compose_plugin_version.rc == 0 else 'Не установлен' }}
+      Статус службы: {{ docker_service_status.stdout }}
+      Пользователи в группе docker: {{ docker_users | join(', ') if docker_users is defined else 'Не указаны' }}
+      =================================
+  tags:
+    - docker
+    - summary

@@ -1,0 +1,29 @@
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    sendfile on;
+    keepalive_timeout 65;
+
+    # Логи
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    # Опционально GeoIP
+    {% if geoip_enabled|default(false) %}
+    geoip2 /usr/share/GeoIP/GeoLite2-Country.mmdb {
+        auto_reload 60m;
+        $geoip2_data_country_code country iso_code;
+    }
+    {% endif %}
+
+    include /etc/nginx/sites-enabled/*;
+}

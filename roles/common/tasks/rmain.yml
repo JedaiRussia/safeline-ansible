@@ -1,0 +1,261 @@
+---
+# SafeLine WAF - Роль Common
+# Базовая настройка системы
+
+- name: Обновление индекса пакетов
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+  tags:
+    - packages
+    - update
+
+- name: Обновление всех пакетов системы
+  apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  when: ansible_os_family == "Debian"
+  register: system_update
+  tags:
+    - packages
+    - update
+
+- name: Перезагрузка если требуется (только если были обновления ядра)
+  reboot:
+    reboot_timeout: 300
+    post_reboot_delay: 30
+  when: system_update.changed and '/boot' in system_update.stdout
+  tags:
+    - reboot
+
+- name: Установка базовых утилит
+  apt:
+    name: "{{ additional_packages }}"
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+  tags:
+    - packages
+    - utilities
+
+- name: Установка специфичных пакетов для хоста
+  apt:
+    name: "{{ host_specific_packages }}"
+    state: present
+  when: host_specific_packages is defined
+  tags:
+    - packages
+    - host-specific
+
+- name: Настройка временной зоны
+  timezone:
+    name: "{{ timezone }}"
+  notify: restart cron
+  tags:
+    - timezone
+    - system
+
+- name: Настройка локали
+  locale_gen:
+    name: "{{ locale }}"
+    state: present
+  when: locale is defined
+  tags:
+    - locale
+    - system
+
+- name: Проверка существования swap файла
+  stat:
+    path: "{{ swap_file_path | default('/swapfile') }}"
+  register: swap_file_exists
+  tags:
+    - swap
+
+- name: Создание swap файла
+  block:
+    - name: Создание swap файла с помощью fallocate
+      command: "fallocate -l {{ swap_size }} {{ swap_file_path | default('/swapfile') }}"
+      when: not swap_file_exists.stat.exists
+
+    - name: Установка прав доступа на swap файл
+      file:
+        path: "{{ swap_file_path | default('/swapfile') }}"
+        mode: '0600'
+        owner: root
+        group: root
+
+    - name: Создание области подкачки
+      command: "mkswap {{ swap_file_path | default('/swapfile') }}"
+      when: not swap_file_exists.stat.exists
+
+    - name: Включение swap файла
+      command: "swapon {{ swap_file_path | default('/swapfile') }}"
+      when: not swap_file_exists.stat.exists
+
+    - name: Добавление swap в fstab для постоянного использования
+      lineinfile:
+        path: /etc/fstab
+        line: "{{ swap_file_path | default('/swapfile') }} none swap sw 0 0"
+        regexp: "^{{ swap_file_path | default('/swapfile') }}"
+        state: present
+
+    - name: Настройка swappiness
+      sysctl:
+        name: vm.swappiness
+        value: "{{ swap_swappiness }}"
+        state: present
+        sysctl_set: yes
+        reload: yes
+  when: not swap_file_exists.stat.exists
+  tags:
+    - swap
+    - memory
+
+- name: Настройка системных лимитов
+  pam_limits:
+    domain: '*'
+    limit_type: "{{ item.type }}"
+    limit_item: "{{ item.item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { type: 'soft', item: 'nofile', value: "{{ max_open_files }}" }
+    - { type: 'hard', item: 'nofile', value: "{{ max_open_files }}" }
+    - { type: 'soft', item: 'nproc', value: "{{ max_processes }}" }
+    - { type: 'hard', item: 'nproc', value: "{{ max_processes }}" }
+  tags:
+    - limits
+    - performance
+
+- name: Настройка параметров ядра
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop: "{{ kernel_parameters }}"
+  when: kernel_parameters is defined
+  tags:
+    - kernel
+    - performance
+
+- name: Создание директории для SafeLine
+  file:
+    path: "{{ safeline_directory }}"
+    state: directory
+    owner: "{{ target_user }}"
+    group: "{{ target_user }}"
+    mode: '0755'
+  tags:
+    - directories
+    - safeline
+
+- name: Создание директории для резервных копий
+  file:
+    path: "{{ backup_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  when: backup_enabled
+  tags:
+    - directories
+    - backup
+
+- name: Настройка автоматической ротации логов
+  template:
+    src: logrotate.conf.j2
+    dest: /etc/logrotate.d/safeline
+    owner: root
+    group: root
+    mode: '0644'
+  when: enable_log_rotation
+  tags:
+    - logging
+    - logrotate
+
+- name: Настройка DNS серверов
+  template:
+    src: resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  when: custom_dns_servers is defined
+  tags:
+    - dns
+    - network
+
+- name: Создание пользователя для SafeLine (если не существует)
+  user:
+    name: "{{ target_user }}"
+    groups: sudo
+    shell: /bin/bash
+    create_home: yes
+    state: present
+  when: target_user != "ubuntu"
+  tags:
+    - users
+    - security
+
+- name: Настройка истории команд bash
+  lineinfile:
+    path: "/home/{{ target_user }}/.bashrc"
+    line: "{{ item }}"
+    create: yes
+    owner: "{{ target_user }}"
+    group: "{{ target_user }}"
+  loop:
+    - 'export HISTSIZE=10000'
+    - 'export HISTFILESIZE=10000'
+    - 'export HISTTIMEFORMAT="%F %T "'
+    - 'export HISTCONTROL=ignoredups:erasedups'
+  tags:
+    - bash
+    - history
+
+- name: Проверка доступности интернета
+  uri:
+    url: https://www.google.com
+    method: HEAD
+    timeout: 10
+  register: internet_check
+  ignore_errors: yes
+  tags:
+    - connectivity
+    - verification
+
+- name: Предупреждение об отсутствии интернета
+  debug:
+    msg: "ВНИМАНИЕ: Нет доступа к интернету. Некоторые этапы установки могут не работать."
+  when: internet_check is failed
+  tags:
+    - connectivity
+    - verification
+
+- name: Показать информацию о системе
+  debug:
+    msg: |
+      =================================
+      Базовая настройка системы завершена
+      =================================
+      Хост: {{ inventory_hostname }}
+      ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Временная зона: {{ timezone }}
+      Swap размер: {{ swap_size }}
+      Пользователь: {{ target_user }}
+      SafeLine директория: {{ safeline_directory }}
+      =================================
+  tags:
+    - summary
+    - info
+
+# Handlers
+- name: restart cron
+  service:
+    name: cron
+    state: restarted
+  listen: restart cron

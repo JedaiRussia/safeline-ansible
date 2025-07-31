@@ -1,0 +1,159 @@
+---
+# SafeLine WAF + VPS автоматизация - Главный playbook
+# Автор: Ansible Automation
+# Версия: 1.0
+
+- name: "SafeLine WAF + VPS - Полное развертывание и настройка"
+  hosts: safeline_servers
+  become: yes
+  gather_facts: yes
+  serial: "{{ ansible_serial | default(1) }}"
+  
+  vars_prompt:
+    - name: "confirm_deployment"
+      prompt: "Вы уверены, что хотите развернуть SafeLine WAF на выбранных серверах? (yes/no)"
+      default: "no"
+      private: no
+  
+  pre_tasks:
+    - name: Проверка подтверждения развертывания
+      fail:
+        msg: "Развертывание отменено пользователем"
+      when: confirm_deployment != "yes"
+      
+    - name: Проверка совместимости ОС
+      fail:
+        msg: "Неподдерживаемая операционная система: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when: >
+        not (
+          (ansible_distribution == "Ubuntu" and ansible_distribution_version is version('20.04', '>=')) or
+          (ansible_distribution == "Debian" and ansible_distribution_major_version|int >= 10)
+        )
+        
+    - name: Проверка минимальных требований к ресурсам
+      assert:
+        that:
+          - ansible_memtotal_mb >= 1024
+          - ansible_processor_vcpus >= 1
+        fail_msg: "Недостаточно ресурсов: минимум 1GB RAM и 1 CPU core"
+        
+    - name: Отображение информации о цели развертывания
+      debug:
+        msg: |
+          =================================================
+          SafeLine WAF Развертывание
+          =================================================
+          Хост: {{ inventory_hostname }}
+          IP: {{ ansible_default_ipv4.address }}
+          ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          CPU: {{ ansible_processor_vcpus }} cores
+          RAM: {{ ansible_memtotal_mb }}MB
+          Окружение: {{ environment | default('не указано') }}
+          =================================================
+
+  roles:
+    - role: common
+      tags: 
+        - common
+        - system
+      when: common_setup_enabled | default(true)
+
+    - role: docker
+      tags: 
+        - docker
+        - containers
+      when: docker_installation_enabled | default(true)
+
+    - role: firewall
+      tags: 
+        - firewall
+        - security
+      when: firewall_setup_enabled | default(true)
+
+    - role: safeline
+      tags: 
+        - safeline
+        - waf
+      when: safeline_installation_enabled | default(true)
+
+    - role: nginx
+      tags: 
+        - nginx
+        - reverse-proxy
+      when: install_nginx | default(false)
+
+  post_tasks:
+    - name: Проверка статуса SafeLine сервисов
+      command: docker compose ps
+      args:
+        chdir: "{{ safeline_directory }}"
+      register: safeline_status
+      changed_when: false
+      failed_when: false
+      tags: 
+        - verification
+        - safeline
+
+    - name: Отображение статуса SafeLine
+      debug:
+        var: safeline_status.stdout_lines
+      when: safeline_status.stdout_lines is defined
+      tags: 
+        - verification
+        - safeline
+
+    - name: Финальная проверка доступности портов
+      wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: "{{ item }}"
+        timeout: 10
+        state: started
+      loop:
+        - "{{ safeline_http_port }}"
+        - "{{ safeline_https_port }}"
+        - "{{ safeline_admin_port }}"
+      ignore_errors: yes
+      tags: 
+        - verification
+        - ports
+
+    - name: Итоговая информация о развертывании
+      debug:
+        msg: |
+          =================================================
+          РАЗВЕРТЫВАНИЕ ЗАВЕРШЕНО УСПЕШНО!
+          =================================================
+          
+          SafeLine WAF Панель Управления:
+          https://{{ ansible_default_ipv4.address }}:{{ safeline_admin_port }}
+          
+          Получить пароль администратора:
+          sudo docker exec safeline-mgt resetadmin
+          
+          Проверить статус SafeLine:
+          cd {{ safeline_directory }} && sudo docker compose ps
+          
+          Просмотреть логи:
+          cd {{ safeline_directory }} && sudo docker compose logs -f
+          
+          Порты:
+          - HTTP: {{ safeline_http_port }}
+          - HTTPS: {{ safeline_https_port }}  
+          - Admin: {{ safeline_admin_port }}
+          
+          Разрешенные IP для админки:
+          {{ admin_allowed_ips | join(', ') }}
+          
+          =================================================
+      tags: 
+        - summary
+
+  handlers:
+    - name: restart safeline
+      command: docker compose restart
+      args:
+        chdir: "{{ safeline_directory }}"
+      
+    - name: reload firewall
+      command: ufw reload
+      when: ufw_enabled

@@ -1,0 +1,47 @@
+---
+# SafeLine WAF - Handlers
+# Обработчики событий для SafeLine
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+  
+- name: enable safeline
+  systemd:
+    name: safeline
+    enabled: yes
+    
+- name: start safeline
+  systemd:
+    name: safeline
+    state: started
+    
+- name: restart safeline
+  systemd:
+    name: safeline
+    state: restarted
+    
+- name: start docker
+  systemd:
+    name: docker
+    state: started
+    
+- name: enable docker
+  systemd:
+    name: docker
+    enabled: yes
+    
+- name: restart docker
+  systemd:
+    name: docker
+    state: restarted
+    
+- name: restart fail2ban
+  systemd:
+    name: fail2ban
+    state: restarted
+    
+- name: restart ssh
+  systemd:
+    name: ssh
+    state: restarted
