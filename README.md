@@ -1,6 +1,7 @@
 # SafeLine WAF + VPS - Ansible Playbook
 
-![SafeLine Logo](https://waf.chaitin.com/assets/images/logo.svg)
+<img width="718" height="174" alt="image" src="https://github.com/user-attachments/assets/f036c8c1-1979-450c-bf80-3e3e882c1cd6" />
+
 
 ## Описание
 
@@ -91,7 +92,7 @@ safeline-ansible/
 
 ## Troubleshooting
 
-* **Нет доступа к панеле?**
+* **Нет доступа к панели?**
   Убедитесь, что ваш IP входит в `admin_allowed_ips` и порт `9443` открыт в UFW.
 * **Контейнеры не запускаются?**
   Проверьте `docker compose logs -f` в директории SafeLine.
