@@ -1,6 +1,6 @@
 # SafeLine WAF + VPS - Ansible Playbook
 
-![SafeLine Logo](https://waf.chaitin.com/assets/images/logo.svg)
+![SafeLine Logo]([https://waf.chaitin.com/assets/images/logo.svg](https://github.com/chaitin/SafeLine/blob/main/images/banner.png))
 
 ## Описание
 
