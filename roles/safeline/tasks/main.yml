@@ -40,14 +40,15 @@
     - check
 
 - name: Остановка существующих контейнеров SafeLine (если есть)
-  command: docker compose down
+  command: >
+    docker compose --env-file {{ safeline_directory }}/.env down
   args:
     chdir: "{{ safeline_directory }}"
-  when: safeline_exists.stat.exists
   ignore_errors: true
   tags:
     - safeline
     - cleanup
+
 
 - name: Резервное копирование существующей конфигурации
   copy:
