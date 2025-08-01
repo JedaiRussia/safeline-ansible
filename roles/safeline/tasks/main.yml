@@ -154,15 +154,21 @@
 - name: Проверка системных требований для SafeLine
   block:
     - name: Проверка поддержки инструкций CPU (ssse3)
-      command: lscpu | grep -i ssse3
+      shell: lscpu | grep -i ssse3
       register: cpu_check
       changed_when: false
       ignore_errors: true
+      tags:
+        - safeline
+        - requirements
 
     - name: Предупреждение о требованиях CPU
       debug:
         msg: "ВНИМАНИЕ: CPU может не поддерживать требуемые инструкции SSSE3"
       when: cpu_check.rc != 0
+      tags:
+        - safeline
+        - requirements
 
     - name: Проверка свободного места на диске
       shell: df -h {{ safeline_directory }} | awk 'NR==2 {print $4}' | sed 's/G//'
