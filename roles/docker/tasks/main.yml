@@ -141,104 +141,11 @@
     - docker
     - configuration
 
-- name: Определение последней версии Docker Compose
-  uri:
-    url: https://api.github.com/repos/docker/compose/releases/latest
-    method: GET
-    return_content: yes
-  register: docker_compose_latest
-  when: docker_compose_version == "latest"
-  tags:
-    - docker-compose
-    - version
-
-- name: Установка версии Docker Compose
-  set_fact:
-    compose_version: "{{ docker_compose_version if docker_compose_version != 'latest' else docker_compose_latest.json.tag_name }}"
-  tags:
-    - docker-compose
-    - version
-
-- name: Загрузка Docker Compose
-  get_url:
-    url: "https://github.com/docker/compose/releases/download/{{ compose_version }}/docker-compose-linux-{{ deb_architecture.stdout }}"
-    dest: "{{ docker_compose_path }}"
-    mode: '0755'
-    owner: root
-    group: root
-    force: yes
-  tags:
-    - docker-compose
-    - install
-
-- name: Создание симлинка для Docker Compose
-  file:
-    src: "{{ docker_compose_path }}"
-    dest: /usr/bin/docker-compose
-    state: link
-    force: yes
-  tags:
-    - docker-compose
-    - symlink
-
-- name: Проверка установки Docker Compose
-  command: docker-compose --version
-  register: docker_compose_version_check
-  changed_when: false
-  tags:
-    - docker-compose
-    - verification
-
-- name: Отображение версии Docker Compose
-  debug:
-    msg: "Установлена версия Docker Compose: {{ docker_compose_version_check.stdout }}"
-  tags:
-    - docker-compose
-    - verification
-
-- name: Запуск и включение службы Docker
-  systemd:
-    name: docker
-    state: "{{ docker_service_state }}"
-    enabled: "{{ docker_service_enabled }}"
-    daemon_reload: yes
-  tags:
-    - docker
-    - service
-
-- name: Проверка статуса службы Docker
-  command: systemctl is-active docker
-  register: docker_service_status
-  changed_when: false
-  tags:
-    - docker
-    - verification
-
-- name: Проверка работы Docker
-  command: docker run --rm hello-world
-  register: docker_test
-  changed_when: false
-  ignore_errors: true
-  tags:
-    - docker
-    - test
-
-- name: Результат тестирования Docker
-  debug:
-    msg: |
-      {% if docker_test.rc == 0 %}
-      ✅ Docker работает корректно
-      {% else %}
-      ❌ Проблема с Docker: {{ docker_test.stderr }}
-      {% endif %}
-  tags:
-    - docker
-    - test
-
 - name: Установка Docker Compose плагина (современный способ)
   apt:
     name: docker-compose-plugin
     state: present
+    update_cache: yes
   tags:
     - docker-compose
     - plugin
@@ -279,9 +186,8 @@
       Установка Docker завершена
       =================================
       Docker версия: {{ docker_version_check.stdout }}
-      Docker Compose версия: {{ docker_compose_version_check.stdout }}
-      Docker Compose Plugin: {{ docker_compose_plugin_version.stdout if docker_compose_plugin_version.rc == 0 else 'Не установлен' }}
-      Статус службы: {{ docker_service_status.stdout }}
+      Docker Compose plugin: {{ docker_compose_plugin_version.stdout if docker_compose_plugin_version.rc == 0 else 'Не установлен' }}
+      Статус службы: {{ docker_service_status.stdout if docker_service_status is defined else 'unknown' }}
       Пользователи в группе docker: {{ docker_users | join(', ') if docker_users is defined else 'Не указаны' }}
       =================================
   tags:

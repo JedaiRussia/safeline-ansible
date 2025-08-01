@@ -11,18 +11,24 @@ create_swap: false
 swap_file_size: 2G
 swap_file_path: /swapfile
 
+# Timezone configuration
 timezone: Europe/Moscow
+
+# Enable log rotation
 enable_log_rotation: true
 
 # ================================================================
 # BACKUP CONFIGURATION
 # ================================================================
 
-backup_enabled: false           # включить резервное копирование
-backup_directory: /opt/backups # директория для хранения бэкапов
-backup_retention_days: 30      # число дней для хранения
+backup_enabled: false            # включить резервное копирование
+backup_directory: /opt/backups   # директория для хранения бэкапов
+backup_retention_days: 30        # число дней для хранения
 
-# System packages to install
+# ================================================================
+# SYSTEM PACKAGES
+# ================================================================
+
 system_packages:
   - curl
   - wget
@@ -39,16 +45,10 @@ system_packages:
 # SAFELINE WAF CONFIGURATION
 # ================================================================
 
-# SafeLine installation directory
 safeline_directory: /opt/safeline
-
-# SafeLine admin panel port (HTTPS)
 safeline_admin_port: 9443
-
-# SafeLine web panel port (HTTP redirect)
 safeline_web_port: 80
 
-# SafeLine management scripts
 safeline_scripts:
   - name: safeline-password
     path: /usr/local/bin/safeline-password
@@ -59,46 +59,41 @@ safeline_scripts:
 # ACCESS CONTROL CONFIGURATION (LOCALHOST OPTIMIZED)
 # ================================================================
 
-# Admin IP addresses allowed to access SafeLine panel
-# ОПТИМИЗИРОВАНО ДЛЯ LOCALHOST: Доступ только с локальной машины
 admin_allowed_ips:
   - 127.0.0.1/32       # Localhost IPv4
-  - ::1/128             # Localhost IPv6  
+  - ::1/128            # Localhost IPv6
   - 192.168.1.0/24     # Локальная сеть (если нужен внешний доступ)
   # - YOUR_EXTERNAL_IP/32  # Ваш внешний IP (раскомментируйте если нужен внешний доступ)
 
-# SSH allowed IPs (для localhost не критично, но сохранено для совместимости)
 ssh_allowed_ips: "{{ admin_allowed_ips }}"
 
 # ================================================================
 # DOCKER CONFIGURATION
 # ================================================================
+
 docker_edition: ce
+
 docker_users:
   - "{{ ansible_user | default('root') }}"
+
 docker_packages:
   - docker-ce
   - docker-ce-cli
   - containerd.io
 
-docker_compose_version: "2.24.0"
-# Путь для бинаря Docker Compose
-docker_compose_path: "/usr/local/bin/docker-compose"
-
+# Use Docker Compose plugin instead of standalone binary
+docker_compose_plugin: true
 
 # ================================================================
 # NGINX REVERSE PROXY CONFIGURATION (OPTIONAL)
 # ================================================================
 
-# Install Nginx reverse proxy with GeoIP filtering
 install_nginx: false
 
-# Nginx configuration (if enabled)
 nginx_worker_processes: auto
 nginx_worker_connections: 1024
 nginx_client_max_body_size: 100M
 
-# GeoIP configuration (if nginx enabled)
 nginx_geoip_enabled: false
 nginx_blocked_countries:
   - CN  # China
@@ -108,77 +103,46 @@ nginx_blocked_countries:
 # UFW FIREWALL CONFIGURATION
 # ================================================================
 
-# Enable UFW firewall
 ufw_enabled: true
-
-# UFW logging level (off, low, medium, high, full)
 ufw_logging: medium
-
-# UFW default policies
 ufw_default_input_policy: deny
 ufw_default_output_policy: allow
 ufw_default_forward_policy: deny
 
-# UFW rules configuration
 ufw_rules:
-  # SSH access (для localhost можно отключить, но сохранено для совместимости)
   - { rule: 'allow', port: '22', proto: 'tcp', comment: 'SSH access' }
-  
-  # HTTP/HTTPS for web traffic
   - { rule: 'allow', port: '80', proto: 'tcp', comment: 'HTTP access' }
   - { rule: 'allow', port: '443', proto: 'tcp', comment: 'HTTPS access' }
-  
-  # SafeLine admin panel (restricted to localhost)
   - { rule: 'allow', port: '{{ safeline_admin_port }}', proto: 'tcp', from_ip: '127.0.0.1', comment: 'SafeLine admin panel localhost' }
   - { rule: 'allow', port: '{{ safeline_admin_port }}', proto: 'tcp', from_ip: '::1', comment: 'SafeLine admin panel localhost IPv6' }
-  
-  # SafeLine management port (internal)
   - { rule: 'allow', port: '9080', proto: 'tcp', from_ip: '127.0.0.1', comment: 'SafeLine internal' }
-  
-  # Docker networks (if needed)
   - { rule: 'allow', from_ip: '172.16.0.0/12', comment: 'Docker networks' }
   - { rule: 'allow', from_ip: '192.168.0.0/16', comment: 'Local networks' }
-  
-  # Loopback interface (важно для localhost)
   - { rule: 'allow', from_ip: '127.0.0.0/8', comment: 'Loopback interface' }
 
 # ================================================================
 # FAIL2BAN CONFIGURATION  
 # ================================================================
 
-# Enable fail2ban
 fail2ban_enabled: true
-
-# Ban duration (how long IP stays banned)
 fail2ban_bantime: '24h'
-
-# Time window for counting failed attempts
 fail2ban_findtime: '10m'
-
-# Maximum failed attempts before ban
 fail2ban_maxretry: 3
-
-# SSH specific settings
 fail2ban_ssh_maxretry: 5
 fail2ban_ssh_bantime: '1h'
-
-# Block type: 'reject' (recommended) or 'deny'
 fail2ban_blocktype: 'reject'
 
-# IP addresses to ignore (whitelist) - ИСПРАВЛЕНО ДЛЯ LOCALHOST
-fail2ban_ignoreip: 
+fail2ban_ignoreip:
   - '127.0.0.1/8'      # Localhost IPv4
-  - '::1'              # IPv6 localhost
-  - '192.168.1.0/24'   # Local network
+  - '::1'             # IPv6 localhost
+  - '192.168.1.0/24'  # Local network
 
 # ================================================================
 # COMMON ROLE VARIABLES (LOCALHOST OPTIMIZED)
-# ================================================================  
+# ================================================================
 
-# User configuration - ИСПРАВЛЕНО ДЛЯ LOCALHOST
 target_user: "{{ ansible_user | default('root') }}"
 
-# Additional packages to install
 additional_packages:
   - vim
   - tree
@@ -186,11 +150,9 @@ additional_packages:
   - net-tools
   - dnsutils
 
-# Swap configuration 
 swap_size: "{{ swap_file_size | default('2G') }}"
 swap_swappiness: 10
 
-# System performance limits
 max_open_files: 65536
 max_processes: 32768
 
@@ -198,11 +160,6 @@ max_processes: 32768
 # LOCALHOST OPTIMIZATIONS (НОВЫЙ РАЗДЕЛ)
 # ================================================================
 
-# Enable localhost mode optimizations
 localhost_mode: true
-
-# Optimize for single-node deployment
 single_node_deployment: true
-
-# Local paths optimization  
-local_backup_path: "/home/{{ ansible_user | default('safeline') }}/safeline-backups"
+local_backup_path: "/home/{{ ansible_user | default('root') }}/safeline-backups"
