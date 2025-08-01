@@ -74,9 +74,10 @@
     - safeline
     - download
 
+
 - name: Альтернативная загрузка compose.yaml с GitHub
   get_url:
-    url: "https://raw.githubusercontent.com/chaitin/SafeLine/main/compose.yaml"
+    url: "https://raw.githubusercontent.com/chaitin/SafeLine/{{ safeline_image_tag }}/compose.yaml"
     dest: "{{ safeline_directory }}/compose.yaml"
     owner: "{{ target_user }}"
     group: "{{ target_user }}"
@@ -88,6 +89,7 @@
     - safeline
     - download
     - alternative
+
 
 - name: Создание .env файла для SafeLine
   template:
