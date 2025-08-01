@@ -196,7 +196,7 @@
     shell: /bin/bash
     create_home: yes
     state: present
-  when: target_user != "ubuntu"
+  when: target_user != "waf"
   tags:
     - users
     - security

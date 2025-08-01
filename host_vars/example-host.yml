@@ -4,7 +4,7 @@
 
 # Специфичные настройки для данного хоста
 ansible_host: "192.168.1.100"
-ansible_user: "ubuntu"
+ansible_user: "waf"
 
 # Переопределение глобальных настроек для этого хоста
 safeline_admin_port: 9443
@@ -25,9 +25,12 @@ log_level: "INFO"
 install_nginx: false
 
 # Дополнительные пакеты только для этого хоста
-host_specific_packages:
-  - "monitoring-agent"
-  - "backup-client"
+host_specific_packages: []
+  # - "zabbix-agent"      # мониторинг
+  # - "borgbackup"        # бэкапы
+  # - "htop"              # системный монитор
+  # - "ncdu"              # анализ дискового пространства
+
 
 # Настройки производительности для мощного сервера
 max_open_files: 131072

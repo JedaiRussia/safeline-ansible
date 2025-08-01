@@ -295,7 +295,7 @@ locale: en_US.UTF-8
 # ================================================================
 
 # User configuration
-target_user: "{{ ansible_user | default('ubuntu') }}"
+target_user: "{{ ansible_user | default('waf') }}"
 
 # Additional packages to install
 additional_packages:

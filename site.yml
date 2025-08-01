@@ -5,15 +5,15 @@
 
 - name: "SafeLine WAF + VPS - Полное развертывание и настройка"
   hosts: safeline_servers
-  become: yes
-  gather_facts: yes
+  become: true
+  gather_facts: true
   serial: "{{ ansible_serial | default(1) }}"
   
   vars_prompt:
     - name: "confirm_deployment"
       prompt: "Вы уверены, что хотите развернуть SafeLine WAF на выбранных серверах? (yes/no)"
       default: "no"
-      private: no
+      private: false
   
   pre_tasks:
     - name: Проверка подтверждения развертывания
@@ -112,7 +112,7 @@
         - "{{ safeline_http_port }}"
         - "{{ safeline_https_port }}"
         - "{{ safeline_admin_port }}"
-      ignore_errors: yes
+      ignore_errors: true
       tags: 
         - verification
         - ports
