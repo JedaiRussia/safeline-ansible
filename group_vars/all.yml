@@ -161,7 +161,7 @@ fail2ban_ignoreip:
 # ================================================================  
 
 # User configuration - ИСПРАВЛЕНО ДЛЯ LOCALHOST
-target_user: "{{ ansible_user | default('safeline') }}"
+target_user: "{{ ansible_user | default('root') }}"
 
 # Additional packages to install
 additional_packages:
