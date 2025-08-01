@@ -48,6 +48,7 @@ system_packages:
 safeline_directory: /opt/safeline
 safeline_admin_port: 9443
 safeline_web_port: 80
+safeline_https_port: 443
 
 safeline_scripts:
   - name: safeline-password
