@@ -73,14 +73,18 @@ ssh_allowed_ips: "{{ admin_allowed_ips }}"
 # ================================================================
 # DOCKER CONFIGURATION
 # ================================================================
-
-# Docker installation
 docker_edition: ce
 docker_users:
-  - "{{ ansible_user }}"
+  - "{{ ansible_user | default('root') }}"
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
 
-# Docker Compose version
 docker_compose_version: "2.24.0"
+# Путь для бинаря Docker Compose
+docker_compose_path: "/usr/local/bin/docker-compose"
+
 
 # ================================================================
 # NGINX REVERSE PROXY CONFIGURATION (OPTIONAL)
