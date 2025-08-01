@@ -163,3 +163,13 @@ max_processes: 32768
 localhost_mode: true
 single_node_deployment: true
 local_backup_path: "/home/{{ ansible_user | default('root') }}/safeline-backups"
+
+# SAFE LINE ENVIRONMENT DEFAULTS
+safeline_image_tag: 'latest'
+safeline_postgres_password: 'changeme'
+safeline_subnet_prefix: '172.16.238.0/24'
+safeline_image_prefix: 'safeline'
+safeline_arch_suffix: 'amd64'
+safeline_release: 'latest'
+safeline_region: 'global'
+container_timezone: '{{ timezone }}'

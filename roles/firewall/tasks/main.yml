@@ -7,12 +7,16 @@
     state: present
     update_cache: yes
   when: ansible_os_family == "Debian"
-  tags: [ufw, firewall]
+  tags:
+    - ufw
+    - firewall
 
 - name: Reset UFW to defaults
   ufw:
     state: reset
-  tags: [ufw, firewall]
+  tags:
+    - ufw
+    - firewall
 
 - name: Enable UFW with default policies
   ufw:
@@ -22,7 +26,9 @@
   loop:
     - { policy: 'deny', direction: 'incoming' }
     - { policy: 'allow', direction: 'outgoing' }
-  tags: [ufw, firewall]
+  tags:
+    - ufw
+    - firewall
 
 - name: Add dummy rule for fail2ban compatibility
   ufw:
@@ -30,7 +36,9 @@
     from_ip: 127.0.0.1
     to_port: 1
     comment: "dummy-rule-for-fail2ban"
-  tags: [ufw, firewall]
+  tags:
+    - ufw
+    - firewall
 
 - name: Configure UFW basic rules
   ufw:
@@ -41,7 +49,9 @@
     comment: "{{ item.comment | default(omit) }}"
   loop: "{{ ufw_rules }}"
   when: ufw_rules is defined
-  tags: [ufw, firewall]
+  tags:
+    - ufw
+    - firewall
 
 - name: Install fail2ban
   apt:
@@ -49,14 +59,18 @@
     state: present
     update_cache: yes
   when: fail2ban_enabled | default(true)
-  tags: [fail2ban, firewall]
+  tags:
+    - fail2ban
+    - firewall
 
 - name: Ensure fail2ban is stopped before configuration
   systemd:
     name: fail2ban
     state: stopped
   when: fail2ban_enabled | default(true)
-  tags: [fail2ban, firewall]
+  tags:
+    - fail2ban
+    - firewall
 
 - name: Create updated ufw.conf action for fail2ban
   template:
@@ -66,9 +80,12 @@
     owner: root
     group: root
     mode: '0644'
-  notify: restart fail2ban
+  notify:
+    - restart fail2ban
   when: fail2ban_enabled | default(true)
-  tags: [fail2ban, firewall]
+  tags:
+    - fail2ban
+    - firewall
 
 - name: Create fail2ban jail.local configuration
   template:
@@ -78,9 +95,12 @@
     owner: root
     group: root
     mode: '0644'
-  notify: restart fail2ban
+  notify:
+    - restart fail2ban
   when: fail2ban_enabled | default(true)
-  tags: [fail2ban, firewall]
+  tags:
+    - fail2ban
+    - firewall
 
 - name: Start and enable fail2ban service
   systemd:
@@ -88,16 +108,15 @@
     state: started
     enabled: yes
   when: fail2ban_enabled | default(true)
-  tags: [fail2ban, firewall]
-
-- name: Ждать запуска fail2ban
-  command: systemctl is-active fail2ban
-  register: fail2ban_status
-  retries: 5
-  delay: 2
-  until: fail2ban_status.stdout == "active"
-  when: fail2ban_enabled | default(true)
   tags:
     - fail2ban
     - firewall
 
+- name: Ensure fail2ban is running
+  systemd:
+    name: fail2ban
+    state: started
+  when: fail2ban_enabled | default(true)
+  tags:
+    - fail2ban
+    - firewall
