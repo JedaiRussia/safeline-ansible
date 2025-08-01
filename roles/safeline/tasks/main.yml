@@ -40,8 +40,7 @@
     - check
 
 - name: Остановка существующих контейнеров SafeLine (если есть)
-  command: >
-    docker compose --env-file {{ safeline_directory }}/.env down
+  command: docker compose down
   args:
     chdir: "{{ safeline_directory }}"
   ignore_errors: true
@@ -49,20 +48,19 @@
     - safeline
     - cleanup
 
-
 - name: Резервное копирование существующей конфигурации
   copy:
     src: "{{ safeline_directory }}/"
     dest: "{{ backup_directory }}/safeline-backup-{{ ansible_date_time.epoch }}/"
     remote_src: yes
-  when: safeline_exists.stat.exists and backup_enabled
+  when: safeline_exists.stat.exists and backup_enabled | default(false)
   tags:
     - safeline
     - backup
 
 - name: Загрузка docker-compose файла SafeLine
   get_url:
-    url: "https://waf.chaitin.com/release/latest/compose.yaml"
+    url: "https://waf.chaitin.com/release/{{ safeline_image_tag }}/compose.yaml"
     dest: "{{ safeline_directory }}/compose.yaml"
     owner: "{{ target_user }}"
     group: "{{ target_user }}"
@@ -76,7 +74,7 @@
     - safeline
     - download
 
-- name: Альтернативная загрузка compose.yaml с GitHub (если основная недоступна)
+- name: Альтернативная загрузка compose.yaml с GitHub
   get_url:
     url: "https://raw.githubusercontent.com/chaitin/SafeLine/main/compose.yaml"
     dest: "{{ safeline_directory }}/compose.yaml"
@@ -119,7 +117,6 @@
       
       # Дополнительные настройки
       TZ={{ container_timezone | default(timezone) }}
-      
     dest: "{{ safeline_directory }}/.env"
     owner: "{{ target_user }}"
     group: "{{ target_user }}"
@@ -141,7 +138,7 @@
     - logs
 
 - name: Создание директории для данных SafeLine
-  file: 
+  file:
     path: "{{ safeline_directory }}/data"
     state: directory
     owner: "{{ target_user }}"
@@ -179,9 +176,9 @@
       fail:
         msg: "Недостаточно места на диске. Требуется минимум 5GB, доступно: {{ disk_space.stdout }}G"
       when: disk_space.stdout|int < 5
-  tags:
-    - safeline
-    - requirements
+      tags:
+        - safeline
+        - requirements
 
 - name: Загрузка образов SafeLine Docker
   command: docker compose pull
@@ -212,8 +209,7 @@
     state: started
   loop:
     - "{{ safeline_admin_port }}"
-    - "{{ safeline_http_port }}"
-    - "{{ safeline_https_port }}"
+    - "{{ safeline_web_port }}"
   ignore_errors: true
   tags:
     - safeline
@@ -241,27 +237,24 @@
     content: |
       #!/bin/bash
       # Скрипт для получения пароля администратора SafeLine
-      
+
       echo "Получение пароля администратора SafeLine..."
       echo "=========================================="
-      
-      # Проверка что контейнер запущен
+
       if ! docker ps | grep -q safeline-mgt; then
           echo "Ошибка: Контейнер safeline-mgt не запущен!"
           echo "Запустите: cd {{ safeline_directory }} && docker compose up -d"
           exit 1
       fi
-      
-      # Получение пароля
+
       echo "Пароль администратора:"
       docker exec safeline-mgt resetadmin
-      
+
       echo ""
       echo "Панель управления доступна по адресу:"
       echo "https://{{ ansible_default_ipv4.address }}:{{ safeline_admin_port }}"
       echo ""
       echo "Логин: admin"
-      
     dest: /usr/local/bin/safeline-password
     owner: root
     group: root
@@ -275,55 +268,37 @@
     content: |
       #!/bin/bash
       # Скрипт управления SafeLine WAF
-      
+
       SAFELINE_DIR="{{ safeline_directory }}"
-      
+
       case "$1" in
-          start)
-              echo "Запуск SafeLine..."
-              cd "$SAFELINE_DIR" && docker compose up -d
-              ;;
-          stop)
-              echo "Остановка SafeLine..."
-              cd "$SAFELINE_DIR" && docker compose down
-              ;;
-          restart)
-              echo "Перезапуск SafeLine..."
-              cd "$SAFELINE_DIR" && docker compose restart
-              ;;
-          status)
-              echo "Статус SafeLine:"
-              cd "$SAFELINE_DIR" && docker compose ps
-              ;;
-          logs)
-              echo "Логи SafeLine:"
-              cd "$SAFELINE_DIR" && docker compose logs -f
-              ;;
-          update)
-              echo "Обновление SafeLine..."
-              cd "$SAFELINE_DIR" && docker compose pull && docker compose up -d
-              ;;
-          backup)
-              BACKUP_FILE="/tmp/safeline-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
-              echo "Создание резервной копии: $BACKUP_FILE"
-              tar -czf "$BACKUP_FILE" -C "$(dirname $SAFELINE_DIR)" "$(basename $SAFELINE_DIR)"
-              echo "Резервная копия создана: $BACKUP_FILE"
-              ;;
-          *)
-              echo "Использование: $0 {start|stop|restart|status|logs|update|backup}"
-              echo ""
-              echo "Команды:"
-              echo "  start   - Запустить SafeLine"
-              echo "  stop    - Остановить SafeLine"  
-              echo "  restart - Перезапустить SafeLine"
-              echo "  status  - Показать статус контейнеров"
-              echo "  logs    - Показать логи (Ctrl+C для выхода)"
-              echo "  update  - Обновить SafeLine до последней версии"
-              echo "  backup  - Создать резервную копию"
-              exit 1
-              ;;
+         start)
+            cd "$SAFELINE_DIR" && docker compose up -d
+            ;;
+         stop)
+            cd "$SAFELINE_DIR" && docker compose down
+            ;;
+         restart)
+            cd "$SAFELINE_DIR" && docker compose restart
+            ;;
+         status)
+            cd "$SAFELINE_DIR" && docker compose ps
+            ;;
+         logs)
+            cd "$SAFELINE_DIR" && docker compose logs -f
+            ;;
+         update)
+            cd "$SAFELINE_DIR" && docker compose pull && docker compose up -d
+            ;;
+         backup)
+            BACKUP_FILE="/tmp/safeline-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+            tar -czf "$BACKUP_FILE" -C "$(dirname $SAFELINE_DIR)" "$(basename $SAFELINE_DIR)"
+            ;;
+         *)
+            echo "Использование: $0 {start|stop|restart|status|logs|update|backup}"
+            exit 1
+            ;;
       esac
-      
     dest: /usr/local/bin/safeline-ctl
     owner: root
     group: root
@@ -332,13 +307,13 @@
     - safeline
     - management
 
-- name: Настройка автозапуска SafeLine при перезагрузке системы
+- name: Настройка автозапуска SafeLine при перезагрузке
   cron:
     name: "SafeLine autostart"
     special_time: reboot
-    job: "cd {{ safeline_directory }} && /usr/bin/docker compose up -d"
+    job: "cd {{ safeline_directory }} && docker compose up -d"
     user: root
-  when: safeline_autostart
+  when: safeline_autostart | default(false)
   tags:
     - safeline
     - autostart
@@ -350,7 +325,7 @@
       Description=SafeLine WAF
       Requires=docker.service
       After=docker.service
-      
+
       [Service]
       Type=oneshot
       RemainAfterExit=yes
@@ -358,18 +333,17 @@
       ExecStart=/usr/bin/docker compose up -d
       ExecStop=/usr/bin/docker compose down
       TimeoutStartSec=0
-      
+
       [Install]
       WantedBy=multi-user.target
-      
     dest: /etc/systemd/system/safeline.service
     owner: root
     group: root
     mode: '0644'
-  notify: 
+  notify:
     - reload systemd
     - enable safeline
-  when: safeline_autostart
+  when: safeline_autostart | default(false)
   tags:
     - safeline
     - systemd
@@ -388,40 +362,39 @@
     content: |
       SafeLine WAF - Информация об установке
       =====================================
-      
+
       Дата установки: {{ ansible_date_time.iso8601 }}
       Хост: {{ inventory_hostname }} ({{ ansible_default_ipv4.address }})
       Пользователь: {{ target_user }}
-      
+
       Пути:
       - Директория: {{ safeline_directory }}
       - Конфигурация: {{ safeline_directory }}/.env
       - Docker Compose: {{ safeline_directory }}/compose.yaml
-      
+
       Порты:
-      - HTTP: {{ safeline_http_port }}
+      - HTTP: {{ safeline_web_port }}
       - HTTPS: {{ safeline_https_port }}
       - Admin Panel: {{ safeline_admin_port }}
-      
+
       Управление:
       - safeline-ctl {start|stop|restart|status|logs|update|backup}
       - safeline-password (получить пароль админа)
-      
+
       Панель управления:
       https://{{ ansible_default_ipv4.address }}:{{ safeline_admin_port }}
-      
+
       Логин: admin
       {% if admin_password.stdout is defined %}
       Пароль: {{ admin_password.stdout }}
       {% else %}
       Пароль: Выполните команду 'safeline-password'
       {% endif %}
-      
+
       Полезные команды:
       - docker compose ps (в {{ safeline_directory }})
       - docker compose logs -f (в {{ safeline_directory }})
       - docker exec safeline-mgt resetadmin
-      
     dest: "{{ safeline_directory }}/INSTALLATION_INFO.txt"
     mode: '0600'
   tags:
@@ -434,26 +407,25 @@
       =================================
       SafeLine WAF успешно установлен!
       =================================
-      
+
       🌐 Панель управления: https://{{ ansible_default_ipv4.address }}:{{ safeline_admin_port }}
       👤 Логин: admin
       🔑 Пароль: Выполните команду 'safeline-password'
-      
+
       📁 Директория: {{ safeline_directory }}
       🐳 Статус контейнеров: safeline-ctl status
       📋 Логи: safeline-ctl logs
-      
+
       🔧 Управление:
       - safeline-ctl start|stop|restart|status|logs|update|backup
       - safeline-password (получить пароль)
-      
+
       📊 Порты:
-      - HTTP: {{ safeline_http_port }}
+      - HTTP: {{ safeline_web_port }}
       - HTTPS: {{ safeline_https_port }}
       - Admin: {{ safeline_admin_port }}
-      
+
       ⚠️  Важно: Настройте защищаемые сайты в панели управления!
-      =================================
   tags:
     - safeline
     - summary
