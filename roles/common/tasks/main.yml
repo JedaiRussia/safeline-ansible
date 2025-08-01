@@ -74,45 +74,29 @@
   tags:
     - swap
 
-- name: Создание swap файла
-  block:
-    - name: Создание swap файла с помощью fallocate
-      command: "fallocate -l {{ swap_size | default('2G') }} {{ swap_file_path | default('/swapfile') }}"
-      when: not swap_file_exists.stat.exists
+# Создать и настроить swap (если не существует)
+- name: Создать и настроить swap (если не существует)
+  shell: |
+    fallocate -l {{ swap_size | default('2G') }} {{ swap_file_path | default('/swapfile') }}
+    chmod 600 {{ swap_file_path | default('/swapfile') }}
+    mkswap {{ swap_file_path | default('/swapfile') }}
+    swapon {{ swap_file_path | default('/swapfile') }}
+    echo '{{ swap_file_path | default('/swapfile') }} none swap sw 0 0' >> /etc/fstab
+  when:
+    - create_swap | default(true)
+    - not swap_file_exists.stat.exists
+  tags:
+    - swap
+    - memory
 
-    - name: Установка прав доступа на swap файл
-      file:
-        path: "{{ swap_file_path | default('/swapfile') }}"
-        mode: '0600'
-        owner: root
-        group: root
-      when: not swap_file_exists.stat.exists
-
-    - name: Создание области подкачки
-      command: "mkswap {{ swap_file_path | default('/swapfile') }}"
-      when: not swap_file_exists.stat.exists
-
-    - name: Включение swap файла
-      command: "swapon {{ swap_file_path | default('/swapfile') }}"
-      when: not swap_file_exists.stat.exists
-
-    - name: Добавление swap в fstab для постоянного использования
-      lineinfile:
-        path: /etc/fstab
-        line: "{{ swap_file_path | default('/swapfile') }} none swap sw 0 0"
-        regexp: "^{{ swap_file_path | default('/swapfile') }}"
-        state: present
-      when: not swap_file_exists.stat.exists
-
-    - name: Настройка swappiness
-      sysctl:
-        name: vm.swappiness
-        value: "{{ swap_swappiness | default(10) }}"
-        state: present
-        sysctl_set: yes
-        reload: yes
-      when: not swap_file_exists.stat.exists
-
+- name: Настройка swappiness
+  sysctl:
+    name: vm.swappiness
+    value: "{{ swap_swappiness | default(10) }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  when: create_swap | default(true)
   tags:
     - swap
     - memory
@@ -200,7 +184,7 @@
     shell: /bin/bash
     create_home: yes
     state: present
-  when: target_user != "waf" and target_user != "root"
+  when: target_user not in ['waf','root']
   tags:
     - users
     - security

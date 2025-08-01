@@ -13,6 +13,8 @@ swap_file_path: /swapfile
 
 timezone: Europe/Moscow
 
+backup_enabled: true
+
 # System packages to install
 system_packages:
   - curl
