@@ -90,11 +90,14 @@
   when: fail2ban_enabled | default(true)
   tags: [fail2ban, firewall]
 
-- name: Wait for fail2ban to start
-  wait_for:
-    port: 7777
-    host: 127.0.0.1
-    timeout: 30
+- name: Ждать запуска fail2ban
+  command: systemctl is-active fail2ban
+  register: fail2ban_status
+  retries: 5
+  delay: 2
+  until: fail2ban_status.stdout == "active"
   when: fail2ban_enabled | default(true)
-  ignore_errors: true
-  tags: [fail2ban, firewall]
+  tags:
+    - fail2ban
+    - firewall
+
