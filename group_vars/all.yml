@@ -7,13 +7,20 @@
 # ================================================================
 
 # Create swap file configuration
-create_swap: true
+create_swap: false
 swap_file_size: 2G
 swap_file_path: /swapfile
 
 timezone: Europe/Moscow
+enable_log_rotation: true
 
-backup_enabled: true
+# ================================================================
+# BACKUP CONFIGURATION
+# ================================================================
+
+backup_enabled: false           # включить резервное копирование
+backup_directory: /opt/backups # директория для хранения бэкапов
+backup_retention_days: 30      # число дней для хранения
 
 # System packages to install
 system_packages:

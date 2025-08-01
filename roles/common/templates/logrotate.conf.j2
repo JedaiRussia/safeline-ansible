@@ -1,0 +1,9 @@
+{{ safeline_directory }}/logs/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
