@@ -31,6 +31,12 @@ if ! command -v ansible >/dev/null 2>&1; then
     exit 1
 fi
 
+# Проверка версии Ansible
+ANSIBLE_VERSION=$(ansible --version | head -n1 | grep -oE '[0-9]+\.[0-9]+')
+if [[ $(echo "$ANSIBLE_VERSION < 2.9" | bc -l) -eq 1 ]]; then
+    echo -e "${YELLOW}[Предупреждение]${NC} Рекомендуется Ansible 2.9+. Текущая версия: $ANSIBLE_VERSION"
+fi
+
 # Проверка прав sudo
 if ! sudo -n true 2>/dev/null; then
     echo -e "${YELLOW}[Предупреждение]${NC} Для развертывания потребуются права sudo"
@@ -66,6 +72,11 @@ fi
 # Всегда указываем Python интерпретер
 ANSIBLE_CMD+=" -e \"ansible_python_interpreter=/usr/bin/python3\""
 
+# Добавляем verbose режим если запрашивается
+if [[ "${VERBOSE:-}" == "true" ]]; then
+    ANSIBLE_CMD+=" -vvv"
+fi
+
 # Запуск playbook с возможностью ограничения по тегам
 if [[ $# -gt 0 ]]; then
     echo -e "${GREEN}Запуск playbook с тегами: $*${NC}"
@@ -90,3 +101,8 @@ echo "  sudo docker exec safeline-mgt resetadmin"
 echo -e "${BLUE}Панель управления:${NC}"
 echo "  https://localhost:9443"
 echo "  https://127.0.0.1:9443"
+echo ""
+echo -e "${YELLOW}Полезные команды:${NC}"
+echo "  safeline-ctl status    # Статус сервисов"
+echo "  safeline-ctl logs      # Просмотр логов"
+echo "  safeline-ctl backup    # Создание резервной копии"

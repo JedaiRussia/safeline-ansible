@@ -5,7 +5,7 @@
 
 - name: "SafeLine WAF + VPS - Localhost развертывание и настройка"
   hosts: safeline_servers
-  connection: "{{ ansible_connection | default('local') }}"
+  connection: local
   become: true
   gather_facts: true
   
@@ -48,8 +48,8 @@
           ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}
           CPU: {{ ansible_processor_vcpus }} cores
           RAM: {{ ansible_memtotal_mb }}MB
-          Пользователь: {{ ansible_user | default(ansible_env.USER) }}
-          Подключение: {{ ansible_connection | default('local') }}
+          Пользователь: {{ ansible_user_id }}
+          Подключение: local
           ================================================
 
   roles:
