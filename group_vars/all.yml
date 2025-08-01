@@ -11,6 +11,8 @@ create_swap: true
 swap_file_size: 2G
 swap_file_path: /swapfile
 
+timezone: Europe/Moscow
+
 # System packages to install
 system_packages:
   - curl
