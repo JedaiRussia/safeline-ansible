@@ -107,9 +107,9 @@
       set_fact:
         safeline_check_ports: >-
           {{
-            ([ safeline_admin_port, safeline_https_port ]
-            +
-            ([ safeline_web_port ] if install_nginx | default(false) else []))
+            [ safeline_admin_port ] 
+            + ([ safeline_https_port ] if install_nginx | default(false) else [])
+            + ([ safeline_web_port ] if install_nginx | default(false) else [])
           }}
       tags:
         - safeline
@@ -124,6 +124,7 @@
       tags:
         - safeline
         - verification
+
 
 
     - name: Итоговая информация о localhost развертывании
