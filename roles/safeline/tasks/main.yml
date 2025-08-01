@@ -40,7 +40,7 @@
     - check
 
 - name: Остановка существующих контейнеров SafeLine (если есть)
-  command: docker compose down
+  command: docker compose -f compose.yaml down
   args:
     chdir: "{{ safeline_directory }}"
   ignore_errors: true
@@ -60,7 +60,7 @@
 
 - name: Загрузка docker-compose файла SafeLine
   get_url:
-    url: "https://waf.chaitin.com/release/{{ safeline_image_tag }}/compose.yaml"
+    url: "https://raw.githubusercontent.com/chaitin/SafeLine/refs/tags/v{{ safeline_image_tag }}/compose.yaml"
     dest: "{{ safeline_directory }}/compose.yaml"
     owner: "{{ target_user }}"
     group: "{{ target_user }}"
@@ -75,20 +75,20 @@
     - download
 
 
-- name: Альтернативная загрузка compose.yaml с GitHub
-  get_url:
-    url: "https://raw.githubusercontent.com/chaitin/SafeLine/{{ safeline_image_tag }}/compose.yaml"
-    dest: "{{ safeline_directory }}/compose.yaml"
-    owner: "{{ target_user }}"
-    group: "{{ target_user }}"
-    mode: '0644'
-    backup: yes
-    timeout: 30
-  when: compose_download is failed
-  tags:
-    - safeline
-    - download
-    - alternative
+# - name: Альтернативная загрузка compose.yaml с GitHub
+#   get_url:
+#     url: "https://raw.githubusercontent.com/chaitin/SafeLine/{{ safeline_image_tag }}/compose.yaml"
+#     dest: "{{ safeline_directory }}/compose.yaml"
+#     owner: "{{ target_user }}"
+#     group: "{{ target_user }}"
+#     mode: '0644'
+#     backup: yes
+#     timeout: 30
+#   when: compose_download is failed
+#   tags:
+#     - safeline
+#     - download
+#     - alternative
 
 
 - name: Создание .env файла для SafeLine
