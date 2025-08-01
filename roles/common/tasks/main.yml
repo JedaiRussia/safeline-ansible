@@ -106,7 +106,9 @@
         state: present
         sysctl_set: yes
         reload: yes
-  when: not swap_file_exists.stat.exists and create_swap | default(true)
+  when:
+    - create_swap | default(true)
+    - not swap_file_exists.stat.exists
   tags:
     - swap
     - memory
