@@ -165,11 +165,13 @@ single_node_deployment: true
 local_backup_path: "/home/{{ ansible_user | default('root') }}/safeline-backups"
 
 # SAFE LINE ENVIRONMENT DEFAULTS
-safeline_image_tag: "9.1.0"
 safeline_postgres_password: 'changeme'
 safeline_subnet_prefix: '172.16.238.0/24'
-safeline_image_prefix: 'chaitin/safeline'
-safeline_arch_suffix: 'amd64'
-safeline_release: 'latest'
-safeline_region: 'global'
+
+safeline_image_prefix: "chaitin"
+safeline_region: ""         # Пустая строка для международной версии
+safeline_arch_suffix: ""    # Пустая строка для AMD64
+safeline_release: ""        # Пустая строка для стабильной версии  
+safeline_image_tag: "latest"
+
 container_timezone: '{{ timezone }}'
