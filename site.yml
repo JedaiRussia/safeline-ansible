@@ -1,17 +1,17 @@
 ---
-# SafeLine WAF + VPS автоматизация - Главный playbook
-# Автор: Ansible Automation
-# Версия: 1.0
+# SafeLine WAF + VPS автоматизация - Главный playbook (Localhost версия)
+# Автор: Ansible Automation  
+# Версия: 1.1 (оптимизировано для localhost)
 
-- name: "SafeLine WAF + VPS - Полное развертывание и настройка"
+- name: "SafeLine WAF + VPS - Localhost развертывание и настройка"
   hosts: safeline_servers
+  connection: "{{ ansible_connection | default('local') }}"
   become: true
   gather_facts: true
-  serial: "{{ ansible_serial | default(1) }}"
   
   vars_prompt:
     - name: "confirm_deployment"
-      prompt: "Вы уверены, что хотите развернуть SafeLine WAF на выбранных серверах? (yes/no)"
+      prompt: "Вы уверены, что хотите развернуть SafeLine WAF на localhost? (yes/no)"
       default: "no"
       private: false
   
@@ -20,7 +20,7 @@
       fail:
         msg: "Развертывание отменено пользователем"
       when: confirm_deployment != "yes"
-      
+    
     - name: Проверка совместимости ОС
       fail:
         msg: "Неподдерживаемая операционная система: {{ ansible_distribution }} {{ ansible_distribution_version }}"
@@ -29,27 +29,28 @@
           (ansible_distribution == "Ubuntu" and ansible_distribution_version is version('20.04', '>=')) or
           (ansible_distribution == "Debian" and ansible_distribution_major_version|int >= 10)
         )
-        
+    
     - name: Проверка минимальных требований к ресурсам
       assert:
         that:
           - ansible_memtotal_mb >= 1024
           - ansible_processor_vcpus >= 1
         fail_msg: "Недостаточно ресурсов: минимум 1GB RAM и 1 CPU core"
-        
-    - name: Отображение информации о цели развертывания
+    
+    - name: Отображение информации о localhost развертывании
       debug:
         msg: |
-          =================================================
-          SafeLine WAF Развертывание
-          =================================================
+          ================================================
+          SafeLine WAF Localhost Развертывание
+          ================================================
           Хост: {{ inventory_hostname }}
-          IP: {{ ansible_default_ipv4.address }}
+          Локальный IP: {{ ansible_default_ipv4.address | default('127.0.0.1') }}
           ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}
           CPU: {{ ansible_processor_vcpus }} cores
           RAM: {{ ansible_memtotal_mb }}MB
-          Окружение: {{ environment | default('не указано') }}
-          =================================================
+          Пользователь: {{ ansible_user | default(ansible_env.USER) }}
+          Подключение: {{ ansible_connection | default('local') }}
+          ================================================
 
   roles:
     - role: common
@@ -102,49 +103,48 @@
         - verification
         - safeline
 
-    - name: Финальная проверка доступности портов
+    - name: Финальная проверка доступности портов (localhost)
       wait_for:
-        host: "{{ ansible_default_ipv4.address }}"
+        host: "127.0.0.1"
         port: "{{ item }}"
         timeout: 10
         state: started
       loop:
-        - "{{ safeline_http_port }}"
-        - "{{ safeline_https_port }}"
-        - "{{ safeline_admin_port }}"
+        - "{{ safeline_web_port | default(80) }}"
+        - "{{ safeline_admin_port | default(9443) }}"
       ignore_errors: true
       tags: 
         - verification
         - ports
 
-    - name: Итоговая информация о развертывании
+    - name: Итоговая информация о localhost развертывании
       debug:
         msg: |
-          =================================================
-          РАЗВЕРТЫВАНИЕ ЗАВЕРШЕНО УСПЕШНО!
-          =================================================
+          ================================================
+          LOCALHOST РАЗВЕРТЫВАНИЕ ЗАВЕРШЕНО УСПЕШНО!
+          ================================================
           
           SafeLine WAF Панель Управления:
-          https://{{ ansible_default_ipv4.address }}:{{ safeline_admin_port }}
+          🌐 https://localhost:{{ safeline_admin_port | default(9443) }}
+          🌐 https://127.0.0.1:{{ safeline_admin_port | default(9443) }}
+          {% if ansible_default_ipv4.address is defined %}
+          🌐 https://{{ ansible_default_ipv4.address }}:{{ safeline_admin_port | default(9443) }}
+          {% endif %}
           
-          Получить пароль администратора:
-          sudo docker exec safeline-mgt resetadmin
-          
-          Проверить статус SafeLine:
-          cd {{ safeline_directory }} && sudo docker compose ps
-          
-          Просмотреть логи:
-          cd {{ safeline_directory }} && sudo docker compose logs -f
+          Команды управления:
+          🔑 Получить пароль: sudo docker exec safeline-mgt resetadmin
+          📊 Статус: cd {{ safeline_directory }} && sudo docker compose ps
+          📝 Логи: cd {{ safeline_directory }} && sudo docker compose logs -f
           
           Порты:
-          - HTTP: {{ safeline_http_port }}
-          - HTTPS: {{ safeline_https_port }}  
-          - Admin: {{ safeline_admin_port }}
+          - HTTP: {{ safeline_web_port | default(80) }}
+          - HTTPS: 443
+          - Admin: {{ safeline_admin_port | default(9443) }}
           
           Разрешенные IP для админки:
           {{ admin_allowed_ips | join(', ') }}
           
-          =================================================
+          ================================================
       tags: 
         - summary
 
@@ -153,7 +153,7 @@
       command: docker compose restart
       args:
         chdir: "{{ safeline_directory }}"
-      
+    
     - name: reload firewall
       command: ufw reload
-      when: ufw_enabled
+      when: ufw_enabled | default(true)
