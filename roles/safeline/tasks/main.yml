@@ -119,14 +119,7 @@
       
       # Дополнительные настройки
       TZ={{ container_timezone | default(timezone) }}
-    dest: "{{ safeline_directory }}/.env"
-    owner: "{{ target_user }}"
-    group: "{{ target_user }}"
-    mode: '0600'
-    backup: yes
-  tags:
-    - safeline
-    - config
+
 
 - name: Создание директории для логов SafeLine
   file:
@@ -202,20 +195,29 @@
     - safeline
     - start
 
-- name: Ожидание запуска SafeLine сервисов
+- name: Ожидание запуска SafeLine сервисов (admin)
   wait_for:
-    port: "{{ item }}"
+    port: "{{ safeline_admin_port }}"
     host: "{{ ansible_default_ipv4.address }}"
     delay: 10
     timeout: 300
     state: started
-  loop:
-    - "{{ safeline_admin_port }}"
-    - "{{ safeline_web_port }}"
-  ignore_errors: true
   tags:
     - safeline
     - verification
+
+- name: Ожидание запуска веб-порта SafeLine через Nginx (если включено)
+  when: install_nginx | default(false)
+  wait_for:
+    port: "{{ safeline_web_port }}"
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 10
+    timeout: 300
+    state: started
+  tags:
+    - safeline
+    - verification
+
 
 - name: Проверка статуса контейнеров SafeLine
   command: docker compose ps
