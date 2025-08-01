@@ -103,19 +103,28 @@
         - verification
         - safeline
 
-    - name: Финальная проверка доступности портов (localhost)
+    - name: Сформировать список портов для проверки
+      set_fact:
+        safeline_check_ports: >-
+          {{
+            ([ safeline_admin_port, safeline_https_port ]
+            +
+            ([ safeline_web_port ] if install_nginx | default(false) else []))
+          }}
+      tags:
+        - safeline
+        - verification
+
+    - name: Финальная проверка доступности портов SafeLine
       wait_for:
-        host: "127.0.0.1"
+        host: localhost
         port: "{{ item }}"
         timeout: 10
-        state: started
-      loop:
-        - "{{ safeline_web_port | default(80) }}"
-        - "{{ safeline_admin_port | default(9443) }}"
-      ignore_errors: true
-      tags: 
+      loop: "{{ safeline_check_ports }}"
+      tags:
+        - safeline
         - verification
-        - ports
+
 
     - name: Итоговая информация о localhost развертывании
       debug:
